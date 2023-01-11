@@ -1,9 +1,10 @@
 import {defineService} from '../src/exporter.ts';
-import {JamaSession} from './jama/jama-session.ts';
+import {JamaSession, SecurityType} from './jama/jama-session.ts';
 
 const PROJECT_ID = Deno.env.get('JAMA_PROJECT_ID');
 const USERNAME = Deno.env.get('JAMA_USERNAME');
 const PASSWORD = Deno.env.get('JAMA_PASSWORD');
+const SECURITY = Deno.env.get('JAMA_SECURITY') as SecurityType;
 
 if(!PROJECT_ID || !USERNAME || !PASSWORD) {
 	throw new Error(`Must set env vars: JAMA_PROJECT_ID, JAMA_USERNAME, JAMA_PASSWORD`);
@@ -17,7 +18,7 @@ export default defineService({
 	
 	async documentLoaded(document) {
 		// create jama instance and authenticate
-		const k_jama = await JamaSession.create(`https://${document.host}`, USERNAME, PASSWORD);
+		const k_jama = await JamaSession.create(`https://${document.host}`, USERNAME, PASSWORD, SECURITY);
 
 		// use for fetch
 		return {
@@ -40,7 +41,7 @@ export default defineService({
 			let paginationParams = 0;
 
 			for(const param of operation.parameters || []) {
-				if('path' === param.in) {
+				if('query' === param.in) {
 					if('startAt' === param.name) {
 						paginationParams |= 1 << 0;
 					}
@@ -67,7 +68,12 @@ export default defineService({
 	
 	allPaths: {
 		// any Jama path that includes `project` path param should receive the current project ID
-		prepare(path) {
+		prepare(path, args) {
+			// do not download discovered data from other projects
+			if(args?.queryArgs?.project && PROJECT_ID !== args.queryArgs.project) {
+				return null;
+			}
+
 			const pathArgs: Record<string, string> = {};
 			const queryArgs: Record<string, string> = {};
 
@@ -94,9 +100,12 @@ export default defineService({
 	paths: {
 		// omit certain data
 		...[
+			'/comments',
+			'/comments/**',
 			'/activities/adminActivity',
-			'/system/settings/corsdomains',
+			'/system/**',
 			'/relationshiprulesets',
+			'/relationshiprulesets/**',
 		].reduce((concat, path) => ({
 			...concat,
 			[path]: {

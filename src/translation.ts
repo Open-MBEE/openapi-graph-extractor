@@ -104,7 +104,7 @@ export class Translation {
 			// other
 			else {
 				// encode as JSON
-				return '^oajs:Json"'+JSON.stringify(z_value);
+				return '^oge:Json"'+JSON.stringify(z_value);
 			}
 		}
 		else {
@@ -146,7 +146,7 @@ export class Translation {
 
 					// declare as object
 					Object.assign(_hc3_triples[sc1_object] = _hc3_triples[sc1_object] || {}, {
-						a: _g_def.additionalProperties? 'oajs:Dictionary': 'oajs:Object',
+						a: _g_def.additionalProperties? 'oge:Dictionary': 'oge:Object',
 					});
 
 					if(!is_dict_es(z_value)) {
@@ -354,7 +354,7 @@ export class Translation {
 
 						// undefined
 						if('undefined' === typeof z_value) {
-							warn(`Item does not have a link to an expected target at: ${p_href_raw}`);
+							// warn(`Item does not have a link to an expected target at: ${p_href_raw}`);
 
 							// cannot produce link to undefined node
 							continue LINKS;

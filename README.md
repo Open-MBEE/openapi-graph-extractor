@@ -18,6 +18,22 @@ Setting up a new extraction target involves providing the OpenAPI document as a 
 
 ## Usage
 
+Start by installing the dependencies with integrity checks
 ```console
-$ deno --allow-env --allow-read --allow-net run openapi-graph-extractor/src/cli.ts extract config-script.ts https://example.org/open-api-doc.json
+$ deno cache --reload --lock=deno.lock cli.ts
+```
+
+Now you can run the cli with restricted permissions
+```console
+$ deno run \
+    --lock=deno.lock \
+    --no-prompt \
+    --allow-env=EG_USERNAME,EG_PASSWORD,EG_ARG1,EG_ARG2 \
+    --allow-read=. \
+    --allow-net=example.org \
+    openapi-graph-extractor/cli.ts \
+        extract \
+            config-script.ts \
+            https://example.org/open-api-doc.json \
+   > output.ttl
 ```

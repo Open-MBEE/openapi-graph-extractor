@@ -71,7 +71,7 @@ type OpenApiDocument<
 	? OpenAPIV2.Document
 	: OpenAPIV3.Document;
 
-type PathConfigV2<
+export type PathConfigV2<
 	g_document extends OpenAPIV2.Document=OpenAPIV2.Document,
 	si_path extends keyof g_document['paths']=string,
 > = {
@@ -84,7 +84,10 @@ type PathConfigV2<
 	 * Allows caller to configure requests made to the given path
 	 * @param operation 
 	 */
-	prepare?(operation: DeeplyDerefOpsV2<g_document['paths'][si_path], OpenAPIV2.HttpMethods.GET>): RequestConfig;
+	prepare?(
+		operation: DeeplyDerefOpsV2<g_document['paths'][si_path], OpenAPIV2.HttpMethods.GET>,
+		args: RequestConfig
+	): RequestConfig | null;
 }
 
 export type ServiceAugmentation = {
@@ -149,9 +152,13 @@ export type ServiceConfigOpenApiV2<
 		 * Path-specific configs
 		 */
 		paths?: z_document extends object
-			? {
-				[si_path in keyof z_document['paths']]: PathConfigV2<z_document, si_path>
-			}
+			? O.MergeAll<{
+				[si_path in keyof z_document['paths']]: PathConfigV2<z_document, si_path>;
+			}, [
+				{
+					[si_path in `${keyof z_document['paths'] & string}/*`]: PathConfigV2<z_document, si_path>;
+				}
+			]>
 			: Record<string, PathConfigV2>;
 		
 		/**

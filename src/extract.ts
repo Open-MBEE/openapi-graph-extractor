@@ -1,6 +1,7 @@
 import type {OpenAPIV2, OpenAPIV3} from 'npm:openapi-types@12.1.0';
+import {globToRegExp} from 'https://deno.land/std@0.95.0/path/glob.ts';
 
-import {RequestConfig, ServiceAugmentation, ServiceConfigOpenApiV2} from './exporter.ts';
+import {PathConfigV2, RequestConfig, ServiceAugmentation, ServiceConfigOpenApiV2} from './exporter.ts';
 
 // @ts-expect-error untyped
 import graphy from 'npm:graphy@4.3.5';
@@ -72,7 +73,7 @@ class Extraction {
 				rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
 				rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
 				xsd: 'http://www.w3.org/2001/XMLSchema#',
-				oajs: 'https://openmbee.org/openapi-json-schema#',
+				oge: 'https://openmbee.org/openapi-graph-extractor#',
 				'': `${_p_root}#`,
 				def: `${_p_root}#/definitions/`,
 			},
@@ -117,6 +118,21 @@ class Extraction {
 		}
 	}
 
+	*_path_configs_matching(sr_path: string): IterableIterator<PathConfigV2> {
+		// each path config
+		for(const [s_pattern, gc_path] of ode(this._h_paths)) {
+			const r_pattern = globToRegExp(s_pattern, {
+				globstar: true,
+				extended: true,
+			});
+
+			// match
+			if(r_pattern.test(sr_path)) {
+				yield gc_path!;
+			}
+		}
+	}
+
 	protected async _obtain(sr_path: string, gc_req: RequestConfig, g_path=this._g_document.paths[sr_path]) {
 		const {_g_document, _h_paths, _gc_service} = this;
 
@@ -126,31 +142,46 @@ class Extraction {
 			headerArgs: h_args_header={},
 		} = gc_req;
 
-		// check for path config
-		const gc_path = _h_paths[sr_path];
-
-		// skip this path
-		if(gc_path?.skip) return;
+		// clone args before they are mutated
+		const gc_req_in = {
+			pathArgs: {...h_args_path},
+			queryArgs: {...h_args_query},
+			headerArgs: {...h_args_header},
+		};
 
 		// only interested in the readonly endpoints
 		const g_get = g_path['get'] as Dereference.Deeply<typeof g_path['get']>;
 		if(!g_get) return;
 
-		// prepare the specific path config
-		const gc_req_path = gc_path?.prepare?.(g_get);
-		if(gc_req_path) {
-			Object.assign(h_args_path, Object.assign(gc_req_path.pathArgs || {}, h_args_path));
-			Object.assign(h_args_query, Object.assign(gc_req_path.queryArgs || {}, h_args_query));
-			Object.assign(h_args_header, Object.assign(gc_req_path.headerArgs || {}, h_args_header));
+		// apply each config
+		for(const gc_path of this._path_configs_matching(sr_path)) {
+			// skip this path
+			if(gc_path?.skip) return;
+	
+			// prepare the specific path config
+			const gc_req_path = gc_path?.prepare?.(g_get, gc_req_in);
+			if(gc_req_path) {
+				Object.assign(h_args_path, Object.assign(gc_req_path.pathArgs || {}, h_args_path));
+				Object.assign(h_args_query, Object.assign(gc_req_path.queryArgs || {}, h_args_query));
+				Object.assign(h_args_header, Object.assign(gc_req_path.headerArgs || {}, h_args_header));
+			}
+			// returning null is an instruction to skip
+			else if(null === gc_req_path) {
+				return;
+			}
 		}
 
 		// prepare the general path config
-		const gc_req_all = _gc_service.allPaths?.prepare?.(g_get);
+		const gc_req_all = _gc_service.allPaths?.prepare?.(g_get, gc_req_in);
 		if(gc_req_all) {
 			// do not override args already set, otherwise crawler will loop indefinitely
 			Object.assign(h_args_path, Object.assign(gc_req_all.pathArgs || {}, h_args_path));
 			Object.assign(h_args_query, Object.assign(gc_req_all.queryArgs || {}, h_args_query));
 			Object.assign(h_args_header, Object.assign(gc_req_all.headerArgs || {}, h_args_header));
+		}
+		// returning null is an instruction to skip
+		else if(null === gc_req_all) {
+			return;
 		}
 
 		// prep list of required params
@@ -230,7 +261,8 @@ class Extraction {
 			const sx_args = (new URLSearchParams(fodemtv(h_args_query, w => ''+w))).toString();
 			
 			// execute request
-			const d_res = await this._f_fetch(`${_p_root}${sr_path_actual}?${sx_args || ''}`, {
+			const p_request = `${_p_root}${sr_path_actual}?${sx_args || ''}`;
+			const d_res = await this._f_fetch(p_request, {
 				method: 'GET',
 				headers: {
 					...gc_req.headerArgs || {},
@@ -240,6 +272,33 @@ class Extraction {
 
 			// parse response body as JSON
 			const g_body = await d_res.json() as LinkedDataWrapper;
+
+			// non-200 response
+			if(!d_res.ok) {
+				const b_specific = sr_path_template.includes('{');
+
+				// unauthorized
+				if(401 === d_res.status) {
+					throw new Error(`Not authorized to access <${p_request}>`);
+				}
+				// not found
+				else if(404 === d_res.status) {
+					// item possibly deleted while extracting
+					if(b_specific) {
+						this._warn(`An item may have been deleted while extracting <${p_request}>`);
+					}
+					else {
+						throw new Error(`404 response from generic GET <${p_request}>`);
+					}
+				}
+				// any other error
+				else {
+					debugger;
+					this._warn(`Non-200 response from <${p_request}>; aborting pagination`);
+				}
+
+				break;
+			}
 
 			const g_response_schema = g_operation.responses?.['200']?.schema;
 			if(!g_response_schema) {
@@ -355,7 +414,7 @@ class Extraction {
 				headerArgs: h_args_header,
 			}, g_path_matched);
 		}
-debugger;
+
 		// items remain; repeat
 		if(_as_discovered.size) {
 			await this.crawl();
