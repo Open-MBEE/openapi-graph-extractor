@@ -29,11 +29,11 @@ $ deno run \
     --lock=deno.lock \
     --no-prompt \
     --allow-env=EG_USERNAME,EG_PASSWORD,EG_ARG1,EG_ARG2 \
-    --allow-read=. \
+    --allow-read=.,/path/to/config-script.s \
     --allow-net=example.org \
-    openapi-graph-extractor/cli.ts \
+    cli.ts \
         extract \
-            config-script.ts \
+            /path/to/config-script.ts \
             https://example.org/open-api-doc.json \
    > output.ttl
 ```
