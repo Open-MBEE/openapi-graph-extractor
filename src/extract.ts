@@ -64,7 +64,7 @@ class Extraction {
 		this._f_fetch = _g_augmentation.fetch || fetch;
 
 		// construct root URL
-		const _p_root = this._p_root = `${p_host}${sr_base}`;
+		const _p_root = this._p_root = `https://${p_host}${sr_base}`;
 		
 		// prep rdf content writer
 		const ds_writer = this._ds_writer = graphy.content.ttl.write({
@@ -73,7 +73,8 @@ class Extraction {
 				rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
 				xsd: 'http://www.w3.org/2001/XMLSchema#',
 				oajs: 'https://openmbee.org/openapi-json-schema#',
-				'': `${_p_root}/#`,
+				'': `${_p_root}#`,
+				def: `${_p_root}#/definitions/`,
 			},
 		});
 
@@ -83,12 +84,20 @@ class Extraction {
 		});
 	}
 
-	async _init() {
+	get document(): OpenAPIV2.Document {
+		return this._g_document;
+	}
+
+	get serviceConfig(): ServiceConfigOpenApiV2 {
+		return this._gc_service;
+	}
+
+	protected async _init() {
 
 	}
 
 	// only log each distinct warning once
-	_warn(s_warn: string) {
+	protected _warn(s_warn: string) {
 		const {_as_warnings} = this;
 
 		if(!_as_warnings.has(s_warn)) {
@@ -104,12 +113,18 @@ class Extraction {
 		const {_g_document} = this;
 
 		for(const [sr_path, g_path] of ode(_g_document.paths)) {
-			this._obtain(sr_path, {}, g_path);
+			await this._obtain(sr_path, {}, g_path);
 		}
 	}
 
-	async _obtain(sr_path: string, h_args_query: Dict<string|number>={}, g_path=this._g_document.paths[sr_path]) {
+	protected async _obtain(sr_path: string, gc_req: RequestConfig, g_path=this._g_document.paths[sr_path]) {
 		const {_g_document, _h_paths, _gc_service} = this;
+
+		const {
+			pathArgs: h_args_path={},
+			queryArgs: h_args_query={},
+			headerArgs: h_args_header={},
+		} = gc_req;
 
 		// check for path config
 		const gc_path = _h_paths[sr_path];
@@ -121,19 +136,21 @@ class Extraction {
 		const g_get = g_path['get'] as Dereference.Deeply<typeof g_path['get']>;
 		if(!g_get) return;
 
-		// // prep local args
-		// const h_args_query: Dict<string|number> = {};
-
 		// prepare the specific path config
 		const gc_req_path = gc_path?.prepare?.(g_get);
 		if(gc_req_path) {
-			Object.assign(h_args_query, gc_req_path.queryArgs || {})
+			Object.assign(h_args_path, Object.assign(gc_req_path.pathArgs || {}, h_args_path));
+			Object.assign(h_args_query, Object.assign(gc_req_path.queryArgs || {}, h_args_query));
+			Object.assign(h_args_header, Object.assign(gc_req_path.headerArgs || {}, h_args_header));
 		}
 
 		// prepare the general path config
 		const gc_req_all = _gc_service.allPaths?.prepare?.(g_get);
 		if(gc_req_all) {
-			Object.assign(h_args_query, gc_req_all.queryArgs || {})
+			// do not override args already set, otherwise crawler will loop indefinitely
+			Object.assign(h_args_path, Object.assign(gc_req_all.pathArgs || {}, h_args_path));
+			Object.assign(h_args_query, Object.assign(gc_req_all.queryArgs || {}, h_args_query));
+			Object.assign(h_args_header, Object.assign(gc_req_all.headerArgs || {}, h_args_header));
 		}
 
 		// prep list of required params
@@ -141,15 +158,25 @@ class Extraction {
 
 		// each parameter
 		for(const g_param of g_get.parameters || []) {
+			// path param
+			if('path' === g_param.in) {
+				// argument already set for parameter
+				if(g_param.name in h_args_path) continue;
+			}
 			// query param
-			if('query' === g_param.in) {
+			else if('query' === g_param.in) {
 				// argument already set for parameter
 				if(g_param.name in h_args_query) continue;
+			}
+			// header param
+			else if('header' === g_param.in) {
+				// argument already set for parameter
+				if(g_param.name in h_args_header) continue;
+			}
 
-				// param is required
-				if(g_param.required) {
-					a_required_params.push(g_param);
-				}
+			// param is required
+			if(g_param.required) {
+				a_required_params.push(g_param);
 			}
 		}
 
@@ -166,18 +193,26 @@ class Extraction {
 		}
 
 		await this._submit(g_get, sr_path, {
+			pathArgs: h_args_path,
 			queryArgs: h_args_query,
+			headerArgs: h_args_header,
 		});
 	}
 
-	async _submit(g_operation: Dereference.Deeply<NonNullable<OpenAPIV2.OperationObject>>, sr_path: string, gc_req: RequestConfig) {
-		const {_p_root, _gc_service, _h_paths, _as_resources, _as_discovered} = this;
+	async _submit(g_operation: Dereference.Deeply<NonNullable<OpenAPIV2.OperationObject>>, sr_path_template: string, gc_req: RequestConfig) {
+		const {_p_root, _g_document, _gc_service, _h_paths, _as_resources, _as_discovered} = this;
 
-		const gc_path = _h_paths[sr_path];
+		const gc_path = _h_paths[sr_path_template];
 
 		const g_pagination = _gc_service.pagination;
 
 		const b_paginating = g_pagination?.requiresPagination?.(g_operation);
+
+		// apply path args
+		let sr_path_actual = sr_path_template;
+		for(const [si_arg, w_value] of ode(gc_req.pathArgs || {})) {
+			sr_path_actual = sr_path_actual.replace(`{${si_arg}}`, ''+w_value);
+		}
 
 		for(let i_offset=0;;) {
 			const h_args_query = {...gc_req.queryArgs};
@@ -195,9 +230,10 @@ class Extraction {
 			const sx_args = (new URLSearchParams(fodemtv(h_args_query, w => ''+w))).toString();
 			
 			// execute request
-			const d_res = await this._f_fetch(`${_p_root}?${sx_args || ''}`, {
+			const d_res = await this._f_fetch(`${_p_root}${sr_path_actual}?${sx_args || ''}`, {
 				method: 'GET',
 				headers: {
+					...gc_req.headerArgs || {},
 					'accept': (g_operation.produces || ['application/json']).join(','),
 				},
 			});
@@ -207,18 +243,23 @@ class Extraction {
 
 			const g_response_schema = g_operation.responses?.['200']?.schema;
 			if(!g_response_schema) {
-				throw new Error(`Response schema missing from operation at ${sr_path}`);
+				throw new Error(`Response schema missing from operation at ${sr_path_template}`);
 			}
 
+			const g_dereffed = deref(g_response_schema, _g_document as unknown as JsonObject) as unknown as LinkedDataSchemaDef;
+
 			// create translation instance
-			const k_translation = new Translation(_p_root, sr_path, g_response_schema as LinkedDataSchemaDef, g_body, this._ds_writer, _as_resources);
+			const k_translation = new Translation(_p_root, sr_path_template, sr_path_actual, g_dereffed, g_body, this._ds_writer, _as_resources);
 
 			// run translation
 			k_translation.run();
 
 			// merge discovered with local field
 			for(const p_discovered of k_translation.discovered) {
-				_as_discovered.add(p_discovered);
+				// only add to discovered if it hasn't been obtained
+				if(!_as_resources.has(p_discovered)) {
+					_as_discovered.add(p_discovered);
+				}
 			}
 
 			if(b_paginating) {
@@ -234,14 +275,16 @@ class Extraction {
 		}
 	}
 
-	crawl() {
+	async crawl() {
 		const {_g_document, _gc_service, _as_resources, _as_discovered} = this;
 
+		// rotate discovered list
+		const a_discovered = [..._as_discovered];
+		_as_discovered.clear();
+
 		// check all discovered resources
-		for(const sr_discovered of [..._as_discovered]) {
-			// remove resource from discovered list
-			_as_discovered.delete(sr_discovered);
-			
+		CRAWLING:
+		for(const sr_discovered of a_discovered) {
 			// skip resources that were already obtained
 			if(_as_resources.has(sr_discovered)) {
 				continue;
@@ -253,7 +296,10 @@ class Extraction {
 
 			let sr_path_matched!: string;
 			let g_path_matched!: OpenAPIV2.PathItemObject;
+
+			let h_args_path: Dict = {};
 			let h_args_query: Dict = {};
+			let h_args_header: Dict = {};
 
 			PATHS:
 			for(const [sr_path, g_path] of ode(_g_document.paths)) {
@@ -265,8 +311,8 @@ class Extraction {
 				// part length mismatch; not a candidate
 				if(nl_parts !== a_parts_schema.length) continue;
 
-				// clear query args
-				h_args_query = {};
+				// clear path args
+				h_args_path = {};
 
 				// each path part
 				for(let i_part=0; i_part<nl_parts; i_part++) {
@@ -276,12 +322,18 @@ class Extraction {
 					// parameteric path part
 					const m_param = /^\{(.+)\}$/.exec(s_part_schema);
 					if(m_param) {
-						h_args_query[m_param[1]] = s_part_discovered;
+						h_args_path[m_param[1]] = s_part_discovered;
 						continue;
 					}
 
 					// path part is different
 					if(s_part_discovered !== s_part_schema) continue PATHS;
+				}
+
+				// path does not include GET method
+				if(!g_path.get) {
+					this._warn(`Cannot dereference linked resource since the associated path in the OpenAPI document does not have a GET method associated with it: ${sr_path}`);
+					continue;
 				}
 
 				// found match
@@ -297,12 +349,16 @@ class Extraction {
 			}
 
 			// fetch resource
-			this._obtain(sr_path_matched, h_args_query, g_path_matched);
+			await this._obtain(sr_path_matched, {
+				queryArgs: h_args_query,
+				pathArgs: h_args_path,
+				headerArgs: h_args_header,
+			}, g_path_matched);
 		}
-
+debugger;
 		// items remain; repeat
 		if(_as_discovered.size) {
-			this.crawl();
+			await this.crawl();
 		}
 	}
 }
@@ -330,8 +386,8 @@ export async function extract(gc_service: ServiceConfigOpenApiV2, g_augmentation
 	const k_extraction = await Extraction.create(gc_service, g_augmentation || {});
 
 	// start with an initial sweep
-	k_extraction.sweep();
+	await k_extraction.sweep();
 
 	// crawl until all links are traversed
-	k_extraction.crawl();
+	await k_extraction.crawl();
 }

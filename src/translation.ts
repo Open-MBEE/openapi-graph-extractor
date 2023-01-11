@@ -1,7 +1,8 @@
 import {combinations, Dict, is_dict_es, JsonArray, JsonObject, JsonValue, ode} from './belt.ts';
-import {JscAny, JscString, JscInterface, JscObject, LinkedDataWrapper, resolve, JscArray} from './json-schema.ts';
+import {JscAny, JscString, JscInterface, JscObject, LinkedDataWrapper, resolve, JscArray, $_REFERENCE_ID} from './json-schema.ts';
 
 export interface LinkedDataSchemaDef {
+	type: 'object';
 	properties: {
 		meta: JscObject<JscInterface>;
 		links:  JscObject<never, {
@@ -54,15 +55,16 @@ export class Translation {
 
 	constructor(
 		protected _p_root: string,
-		protected _sr_path: string,
-		protected _g_schema: LinkedDataSchemaDef,
+		protected _sr_path_template: string,
+		protected _sr_path_actual: string,
+		protected _g_schema: LinkedDataSchemaDef | JscArray<LinkedDataSchemaDef>,
 		protected _g_body: LinkedDataWrapper,
 		protected _ds_writer: {
 			write(g_write: {type:string; value:object}): void;
 		},
 		protected _as_resources=new Set<string>(),
 	) {
-		this._p_base = this._p_root+this._sr_path;
+		this._p_base = this._p_root+this._sr_path_actual;
 	}
 
 	get resources(): Set<string> {
@@ -103,8 +105,6 @@ export class Translation {
 			else {
 				// encode as JSON
 				return '^oajs:Json"'+JSON.stringify(z_value);
-				// debugger;
-				// throw new Error(`Unable to interpret complex datatype of property that is not defined in schema: ${si_key}`)
 			}
 		}
 		else {
@@ -146,7 +146,7 @@ export class Translation {
 
 					// declare as object
 					Object.assign(_hc3_triples[sc1_object] = _hc3_triples[sc1_object] || {}, {
-						a: 'oajs:Object',
+						a: _g_def.additionalProperties? 'oajs:Dictionary': 'oajs:Object',
 					});
 
 					if(!is_dict_es(z_value)) {
@@ -201,6 +201,8 @@ export class Translation {
 		const {
 			_p_root,
 			_p_base,
+			_sr_path_template,
+			_sr_path_actual,
 			_g_schema,
 			_g_body,
 			_ds_writer,
@@ -289,15 +291,41 @@ export class Translation {
 
 		// each data item
 		for(const g_item of a_rows) {
+			// TODO: use hook to allow user to define custom method for resolving IRI
+
 			// build self iri
-			const p_self = `${_p_base}/${g_item.id}`;
+			let p_self = `${_p_base}/${g_item.id}`;
+
+			// operation has path param; use actual path instead
+			if(_sr_path_template.includes('{')) {
+				p_self = `${_p_root}${_sr_path_actual}`;
+			}
 
 			// add to dataset
 			_as_resources.add(p_self.slice(_p_root.length));
 
+			// rdf:type IRI
+			let p_type = _p_base;
+			if('object' === _g_schema.type) {
+				const g_schema_data = _g_schema.properties.data;
+
+				if('array' === g_schema_data.type) {
+					const si_item_type = g_schema_data.items[$_REFERENCE_ID];
+					if(si_item_type) {
+						p_type = _p_root+si_item_type;
+					}
+				}
+				else {
+					const si_item_type = g_schema_data[$_REFERENCE_ID];
+					if(si_item_type) {
+						p_type = _p_root+si_item_type;
+					}
+				}
+			}
+
 			// prep output
 			_hc3_triples[`>${p_self}`] = _hc3_triples[`>${p_self}`] || {
-				a: '>'+_p_base,
+				a: '>'+p_type,
 			};
 
 			const as_removes = new Set<string>();
@@ -406,13 +434,26 @@ export class Translation {
 				}
 			}
 
-			const g_schema_data = _g_schema.properties.data;
+			if('object' === _g_schema.type) {
+				const g_schema_data = _g_schema.properties.data;
 
-			if('array' === g_schema_data.type) {
-				this._remap(g_schema_data.items.properties, g_item, p_self);
+				if('array' === g_schema_data.type) {
+					this._remap(g_schema_data.items.properties, g_item, p_self);
+				}
+				else {
+					this._remap(g_schema_data.properties, g_item, p_self);
+				}
+			}
+			else if('array' === _g_schema.type) {
+				if('object' === _g_schema.items.type) {
+					this._remap(_g_schema.items.properties, g_item, p_self);
+				}
+				else {
+					throw new Error(`Unhandled array item type in response schema: ${_g_schema.items.type}`);
+				}
 			}
 			else {
-				this._remap(g_schema_data.properties, g_item, p_self);
+				throw new Error(`Unhandled type in response schema: ${_g_schema['type']}`);
 			}
 		}
 

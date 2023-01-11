@@ -7,8 +7,8 @@ import {YargsInstance} from 'https://deno.land/x/yargs@v17.6.2-deno/build/lib/ya
 import type {OpenAPIV2, OpenAPIV3} from 'npm:openapi-types@12.1.0';
 import {parse as parseYaml} from 'npm:yaml@2.2.1';
 
-import {extract} from './extract.ts';
-import { CompatibleDocument, ServiceConfigOpenApiV2 } from "./exporter.ts";
+import {extract} from './src/extract.ts';
+import { CompatibleDocument, ServiceConfigOpenApiV2 } from './src/exporter.ts';
 
 yargs(Deno.args)
 	.command('extract <config-script> [api-document]', 'run the extraction using the given congiruation script and optionally OpenAPI document',
@@ -23,7 +23,6 @@ yargs(Deno.args)
 			// import the configuration script
 			let gc_service: ServiceConfigOpenApiV2<OpenAPIV2.Document>;
 			try {
-				console.log(Deno.cwd());
 				const p_script = path.resolve(Deno.cwd(), g_argv.configScript);
 
 				({default:gc_service} = await import(p_script));

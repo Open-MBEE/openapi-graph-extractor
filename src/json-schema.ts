@@ -52,7 +52,10 @@ export type JscObject<
 	[g_additionals] extends [never]? {}: {
 		additionalProperties: JscObject<g_additionals>;
 	},
-   NeverUnknown<a_required, 'required', string[]>
+   NeverUnknown<a_required, 'required', string[]>,
+	{
+		[$_special: symbol]: string;
+	}
 ]>>;
 
 export type JscAny = JscBoolean | JscInteger | JscString | JscArray | JscObject
@@ -120,6 +123,8 @@ export namespace Dereference {
 }
 
 
+export const $_REFERENCE_ID = Symbol('json-reference-id');
+
 /**
  * Resolves all $ref objects in a JSON Schema struct
  * @param h_json - the schema struct
@@ -131,6 +136,7 @@ export function deref(h_json: JsonObject, g_root: JsonObject, h_blocking: Dict<J
 		const p_path = h_json.$ref;
 
 		if(p_path in h_blocking) {
+         if(p_path.endsWith('BodyPart')) debugger;
 			return h_blocking[p_path];
 		}
 
@@ -143,10 +149,13 @@ export function deref(h_json: JsonObject, g_root: JsonObject, h_blocking: Dict<J
 
 		const g_blocked = h_blocking[p_path] = {...g_node};
 
-		return h_blocking[p_path] = deref_object(g_node!, h_blocking, g_blocked);
+		// return deref_object(g_node!, g_root, h_blocking, g_blocked);
+		return h_blocking[p_path] = Object.assign(deref_object(g_node!, g_root, h_blocking, g_blocked), {
+			[$_REFERENCE_ID]: p_path,
+		});
 	}
 	else {
-		return deref_object(h_json, h_blocking);
+		return deref_object(h_json, g_root, h_blocking);
 	}
 }
 
