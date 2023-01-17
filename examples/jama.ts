@@ -100,12 +100,17 @@ export default defineService({
 	paths: {
 		// omit certain data
 		...[
+			'/abstractitems',
+			'/abstractitems/**',
+			'/activities',
+			'/activities/**',
 			'/comments',
 			'/comments/**',
-			'/activities/adminActivity',
-			'/system/**',
+			'/files',
+			'/filters',
 			'/relationshiprulesets',
 			'/relationshiprulesets/**',
+			'/system/**',
 		].reduce((concat, path) => ({
 			...concat,
 			[path]: {
