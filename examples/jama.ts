@@ -106,6 +106,12 @@ export default defineService({
 			'/system/**',
 			'/relationshiprulesets',
 			'/relationshiprulesets/**',
+			'/abstractitems',
+			'/abstractitems/**',
+			'/files',
+			'/filters',
+			'/activities',
+			'/activities/**',
 		].reduce((concat, path) => ({
 			...concat,
 			[path]: {
