@@ -412,8 +412,9 @@ export class Translation {
 							// non-terminal part requires intermediary, set object and mutate forwarding node
 							if(i_part < nl_parts - 1) sc1_object = sv1_node += '/'+s_part;
 
-							// set triple
-							hc2_node[':'+s_part] = sc1_object;
+							// add triple to set
+							const w_existing = hc2_node[':'+s_part];
+							(hc2_node[':'+s_part] = ((w_existing && !Array.isArray(w_existing))? [w_existing]: w_existing || []) as Array<any>).push(sc1_object);
 						}
 					}
 				}

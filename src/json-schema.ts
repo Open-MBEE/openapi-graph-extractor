@@ -1,7 +1,7 @@
-import {A} from 'npm:ts-toolbelt';
-import { Arrayable, Dict, is_dict_es, JsonObject, JsonValue, ode } from './belt.ts';
+import type {A, O} from '../deps.ts';
 
-import type {O} from 'npm:ts-toolbelt';
+import {Arrayable, Dict, is_dict_es, JsonObject, JsonValue, ode} from './belt.ts';
+
 
 
 type NeverUnknown<

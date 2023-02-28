@@ -1,4 +1,4 @@
-import { Dict, JsonObject } from "../../src/belt.ts";
+import {Dict} from '../../src/belt.ts';
 
 const R_COOKIE = /^([^=]+)=([^;]*)(?:;\s*(.*))?$/;
 
