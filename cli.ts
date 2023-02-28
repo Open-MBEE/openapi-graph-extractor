@@ -1,14 +1,18 @@
-import * as path from "https://deno.land/std@0.171.0/path/mod.ts";
+import type {
+	OpenAPIV2, OpenAPIV3,
+	O,
+	Arguments,
+} from './deps.ts';
 
-import yargs from "https://deno.land/x/yargs@v17.6.2-deno/deno.ts"
-import {Arguments} from "https://deno.land/x/yargs@v17.6.2-deno/deno-types.ts"
-import {YargsInstance} from 'https://deno.land/x/yargs@v17.6.2-deno/build/lib/yargs-factory.d.ts';
-
-import type {OpenAPIV2, OpenAPIV3} from 'npm:openapi-types@12.1.0';
-import {parse as parseYaml} from 'npm:yaml@2.2.1';
+import {
+	path,
+	yargs,
+	YargsInstance,
+	parseYaml,
+} from './deps.ts';
 
 import {extract} from './src/extract.ts';
-import { CompatibleDocument, ServiceConfigOpenApiV2 } from './src/exporter.ts';
+import {CompatibleDocument, ServiceConfigOpenApiV2} from './src/exporter.ts';
 
 yargs(Deno.args)
 	.command('extract <config-script> [api-document]', 'run the extraction using the given congiruation script and optionally OpenAPI document',

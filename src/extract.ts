@@ -1,13 +1,16 @@
-import type {OpenAPIV2, OpenAPIV3} from 'npm:openapi-types@12.1.0';
-import {globToRegExp} from 'https://deno.land/std@0.95.0/path/glob.ts';
+import type {
+	OpenAPIV2, OpenAPIV3,
+} from '../deps.ts';
+
+import {
+	globToRegExp,
+	graphy,
+} from '../deps.ts';
 
 import {PathConfigV2, RequestConfig, ServiceAugmentation, ServiceConfigOpenApiV2} from './exporter.ts';
-
-// @ts-expect-error untyped
-import graphy from 'npm:graphy@4.3.5';
 import {Dict, fodemtv, JsonObject, ode} from './belt.ts';
-import { deref, Dereference, LinkedDataWrapper } from './json-schema.ts';
-import { LinkedDataSchemaDef, Translation } from './translation.ts';
+import {deref, Dereference, LinkedDataWrapper} from './json-schema.ts';
+import {LinkedDataSchemaDef, Translation} from './translation.ts';
 
 
 

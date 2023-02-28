@@ -1,7 +1,10 @@
-import type {OpenAPIV2, OpenAPIV3} from 'npm:openapi-types';
-import {O} from 'npm:ts-toolbelt';
-import { Promisable } from './belt.ts';
-import { Dereference } from './json-schema.ts';
+import type {
+	OpenAPIV2, OpenAPIV3,
+	O,
+} from '../deps.ts';
+
+import {Promisable} from './belt.ts';
+import {Dereference} from './json-schema.ts';
 
 interface ServiceConfigGlobal {
 }
