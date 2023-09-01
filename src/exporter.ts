@@ -6,7 +6,13 @@ import type {
 import {Promisable} from './belt.ts';
 import {Dereference} from './json-schema.ts';
 
-interface ServiceConfigGlobal {
+export interface ServiceConfigGlobal {
+	/**
+	 * Config for graphql schema definition generation
+	 */
+	graphql?: {
+		field?: (fieldName: string, fieldType: string, objectName: String) => string | undefined | void;
+	};
 }
 
 /**

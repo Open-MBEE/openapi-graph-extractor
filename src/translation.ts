@@ -1,4 +1,6 @@
-import {combinations, Dict, is_dict_es, JsonArray, JsonObject, JsonValue, ode} from './belt.ts';
+import { F } from 'npm:ts-toolbelt@9.6.0';
+import {combinations, Dict, is_dict_es, JsonArray, JsonObject, JsonValue, ode, oderom} from './belt.ts';
+import { Expansions, GraphqlSchema } from './graphql.ts';
 import {JscAny, JscString, JscInterface, JscObject, LinkedDataWrapper, resolve, JscArray, $_REFERENCE_ID} from './json-schema.ts';
 
 export interface LinkedDataSchemaDef {
@@ -197,7 +199,7 @@ export class Translation {
 	}
 
 
-	run() {
+	run(_k_graphql: GraphqlSchema) {
 		const {
 			_p_root,
 			_p_base,
@@ -213,6 +215,20 @@ export class Translation {
 
 		// prep data path links
 		const a_links: DataPathLink[] = [];
+
+		// prep graphql expansions (enums and objects)
+		const g_expansions: Expansions = {
+			enums: {},
+			objects: {},
+		};
+
+		// prep graphql shape
+		let si_type_label = '';
+		let h_links: Dict = {};
+		let h_fields: Dict = {};
+
+		let si_item_type = '';
+		let b_exemplar = true;
 
 		// each link descriptor response schema
 		for(const [sr_path, g_link] of ode(_g_body.links || {})) {
@@ -309,16 +325,30 @@ export class Translation {
 			if('object' === _g_schema.type) {
 				const g_schema_data = _g_schema.properties.data;
 
+				let si_item_type: string | undefined;
 				if('array' === g_schema_data.type) {
-					const si_item_type = g_schema_data.items[$_REFERENCE_ID];
-					if(si_item_type) {
-						p_type = _p_root+si_item_type;
-					}
+					si_item_type = g_schema_data.items[$_REFERENCE_ID];
 				}
 				else {
-					const si_item_type = g_schema_data[$_REFERENCE_ID];
-					if(si_item_type) {
-						p_type = _p_root+si_item_type;
+					si_item_type = g_schema_data[$_REFERENCE_ID];
+				}
+
+				if(si_item_type) {
+					p_type = _p_root+si_item_type;
+
+					const si_type_label_local = si_item_type.replace(/^.*\/([^/]+)$/, '$1');
+
+					if(si_type_label && si_type_label_local !== si_type_label) {
+						throw new Error(`Shape changed unexpectedly`);
+					}
+
+					si_type_label = si_type_label_local;
+
+
+					const si_key = _sr_path_template.replace(/\/([^/]+).*$/, '$1');
+
+					if(g_item.type !== si_key) {
+						b_exemplar = false;
 					}
 				}
 			}
@@ -332,7 +362,7 @@ export class Translation {
 
 			// each link
 			LINKS:
-			for(const {sr_path_key, a_href_parts, p_href_raw} of a_links) {
+			for(const {sr_path_key, a_href_parts, p_href_raw, si_type} of a_links) {
 				// queue removal from item
 				as_removes.add(sr_path_key);
 
@@ -416,6 +446,14 @@ export class Translation {
 							const w_existing = hc2_node[':'+s_part];
 							(hc2_node[':'+s_part] = ((w_existing && !Array.isArray(w_existing))? [w_existing]: w_existing || []) as Array<any>).push(sc1_object);
 						}
+
+						// 1-degree links
+						if(2 === a_link_path.length) {
+							const s_part = a_link_path[1];
+
+							// store association for graphql schema
+							h_links[s_part] = si_type;
+						}
 					}
 				}
 			}
@@ -463,6 +501,131 @@ export class Translation {
 			type: 'c3',
 			value: _hc3_triples,
 		});
+
+
+		// add graphql types
+		if('object' === _g_schema.type) {
+			const g_schema_data = _g_schema.properties.data;
+
+			let h_properties!: JscInterface;
+
+			if('array' === g_schema_data.type) {
+				h_properties = g_schema_data.items.properties;
+			}
+			else if('object' === g_schema_data.type) {
+				h_properties = g_schema_data.properties;
+			}
+
+			if(h_properties) {
+				// each property in schema
+				for(const [si_field, g_field] of ode(h_properties)) {
+					// links supercede schema properties
+					if(!(si_field in h_links)) {
+						h_fields[si_field] = schema_to_graphql(si_type_label, si_field, g_field, g_expansions);
+					}
+				}
+			}
+		}
+		else if('array' === _g_schema.type) {
+			if('object' === _g_schema.items.type) {
+				debugger;
+			}
+		}
+
+		const si_key = _sr_path_template.replace(/\/([^/]+).*$/, '$1');
+		// if(si_type_label === 'ItemType') {
+		// 	debugger;
+		// }
+
+		// if(!b_exemplar) {
+		// 	debugger;
+		// }
+
+		// 
+		if(!(si_type_label in _k_graphql.types) || b_exemplar) {
+			// save graphql def to pre-schema 
+			_k_graphql.addType(si_type_label, {
+				key: si_key,
+				links: h_links,
+				fields: h_fields,
+			});
+		}
+
+
+		// merge graphql expansions
+		_k_graphql.mergeExpansions(g_expansions);
 	}
 }
 
+function schema_to_graphql(si_type: string, si_field: string, g_field: JscAny, g_expansions: Expansions, a_blocking: JscAny[]=[g_field]): string {
+	switch(g_field.type) {
+		// boolean type
+		case 'boolean': return 'Boolean';
+
+		// integer type
+		case 'integer': return 'Int';
+
+		// string type
+		case 'string': {
+			// actually an enum
+			if('enum' in g_field) {
+				// normalize enum name
+				const si_enum = `${si_type}_${si_field[0].toUpperCase()+si_field.slice(1)}`;
+
+				// save enum schema
+				g_expansions.enums[si_enum] = g_field.enum as string[];
+
+				// save field type
+				return si_enum;
+			}
+
+			// just a string
+			return 'String';
+		}
+
+		// array type
+		case 'array': return `[${schema_to_graphql(si_type, si_field, g_field.items as JscAny, g_expansions, a_blocking)}]`;
+
+		// object type
+		case 'object': {
+			// requires an object extension type
+			const si_object = `${si_type}_${si_field[0].toUpperCase()+si_field.slice(1)}`;
+
+			// if(a_subblocking.length > 2) debugger;
+
+			// console.log(si_type+' > '+si_field);
+
+			// if('_FilterQuery_Rule_Rules_Rules' === si_type) {
+			// 	debugger;
+			// }
+
+			const h_properties = (g_field as JscObject<{}>).properties || (g_field as JscObject<{}, {}>).additionalProperties.properties;
+
+			if(!h_properties) {
+				return 'Object @any';
+			}
+
+			// save object schema
+			g_expansions.objects[si_object] = oderom(h_properties, (si_key, g_subfield) => {
+				if(a_blocking.includes(g_subfield)) {
+					return {};
+				}
+
+				// const w_ref = g_subfield[$_REFERENCE_ID];
+				// if(w_ref && a_blocking.find(g => w_ref === (g as any)[$_REFERENCE_ID])) {
+				// 	debugger;
+				// }
+
+				return {
+					[si_key]: schema_to_graphql(si_object, si_key, g_subfield, g_expansions, [...a_blocking, g_subfield]),
+				};
+			});
+
+			// save field type
+			return si_object;
+		}
+
+		// unknown
+		default: return '';
+	}
+}

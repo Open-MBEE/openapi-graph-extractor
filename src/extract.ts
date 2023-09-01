@@ -11,6 +11,8 @@ import {PathConfigV2, RequestConfig, ServiceAugmentation, ServiceConfigOpenApiV2
 import {Dict, fodemtv, JsonObject, ode} from './belt.ts';
 import {deref, Dereference, LinkedDataWrapper} from './json-schema.ts';
 import {LinkedDataSchemaDef, Translation} from './translation.ts';
+import { GraphqlSchema } from './graphql.ts';
+import { P_NS_XSD } from './constants.ts';
 
 
 
@@ -27,6 +29,8 @@ class Extraction {
 		write(g_write: {type:string; value:object}): void;
 		end(): void;
 	};
+
+	protected _k_graphql = new GraphqlSchema();
 
 	protected _g_document: OpenAPIV2.Document;
 	protected _h_paths: NonNullable<ServiceConfigOpenApiV2['paths']>;
@@ -75,7 +79,7 @@ class Extraction {
 			prefixes: {
 				rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
 				rdfs: 'http://www.w3.org/2000/01/rdf-schema#',
-				xsd: 'http://www.w3.org/2001/XMLSchema#',
+				xsd: P_NS_XSD,
 				oge: 'https://openmbee.org/openapi-graph-extractor#',
 				'': `${_p_root}#`,
 				def: `${_p_root}#/definitions/`,
@@ -86,6 +90,14 @@ class Extraction {
 		ds_writer.on('data', (atu8_data: Uint8Array) => {
 			Deno.stdout.write(atu8_data);
 		});
+	}
+
+	get base(): string {
+		return this._p_root+'#';
+	}
+
+	get graphql(): GraphqlSchema {
+		return this._k_graphql;
 	}
 
 	get document(): OpenAPIV2.Document {
@@ -314,7 +326,7 @@ class Extraction {
 			const k_translation = new Translation(_p_root, sr_path_template, sr_path_actual, g_dereffed, g_body, this._ds_writer, _as_resources);
 
 			// run translation
-			k_translation.run();
+			k_translation.run(this._k_graphql);
 
 			// merge discovered with local field
 			for(const p_discovered of k_translation.discovered) {
@@ -452,4 +464,7 @@ export async function extract(gc_service: ServiceConfigOpenApiV2, g_augmentation
 
 	// crawl until all links are traversed
 	await k_extraction.crawl();
+
+	// finalize graphql schema
+	k_extraction.graphql.dump(gc_service.graphql, k_extraction.base);
 }

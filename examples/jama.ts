@@ -118,4 +118,12 @@ export default defineService({
 			},
 		}), {}),
 	},
+
+	graphql: {
+		field(fieldName, fieldType) {
+			if(fieldName.endsWith('Key')) return 'ID';
+
+			if('id' === fieldName) return fieldType+' @unique';
+		},
+	},
 });

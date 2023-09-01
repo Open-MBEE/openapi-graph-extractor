@@ -11,3 +11,4 @@ export type {YargsInstance} from 'https://deno.land/x/yargs@v17.7.1-deno/build/l
 export * as path from 'https://deno.land/std@0.178.0/path/mod.ts';
 export {globToRegExp} from 'https://deno.land/std@0.178.0/path/glob.ts';
 
+export * as graphql from 'npm:graphql@16.8.0';
