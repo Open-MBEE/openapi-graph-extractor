@@ -602,7 +602,7 @@ function schema_to_graphql(si_type: string, si_field: string, g_field: JscAny, g
 			const h_properties = (g_field as JscObject<{}>).properties || (g_field as JscObject<{}, {}>).additionalProperties.properties;
 
 			if(!h_properties) {
-				return 'Object @any';
+				return '_Any';
 			}
 
 			// save object schema

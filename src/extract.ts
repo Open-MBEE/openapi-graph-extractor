@@ -11,8 +11,8 @@ import {PathConfigV2, RequestConfig, ServiceAugmentation, ServiceConfigOpenApiV2
 import {Dict, fodemtv, JsonObject, ode} from './belt.ts';
 import {deref, Dereference, LinkedDataWrapper} from './json-schema.ts';
 import {LinkedDataSchemaDef, Translation} from './translation.ts';
-import { GraphqlSchema } from './graphql.ts';
-import { P_NS_XSD } from './constants.ts';
+import {GraphqlSchema} from './graphql.ts';
+import {P_NS_XSD} from './constants.ts';
 
 
 

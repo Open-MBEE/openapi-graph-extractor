@@ -32,6 +32,8 @@ const H_GRAPHQL_TYPES_TO_XSD = {
 	String: 'string',
 };
 
+const A_PRIMITIVES = ['ID', ...Object.keys(H_GRAPHQL_TYPES_TO_XSD)];
+
 export class GraphqlSchema {
 	protected _h_types: Dict<PreSchemaType> = {};
 	protected _h_enums: ExpansionEnums = {};
@@ -79,6 +81,46 @@ export class GraphqlSchema {
 		// schema output
 		let s_schema = '';
 
+		// any merger
+		const h_anys: Dict<Set<string>> = {};
+
+		// links
+		const h_links: Dict<Dict<string[]>> = {};
+
+		// classes
+		const h_classes: Dict<string[]> = {};
+
+		// unionizer
+		function unionize(a_things: string[], si_pre: string, si_post: string='') {
+			// target default thing
+			let si_target = a_things[0];
+
+			// multiple things
+			if(a_things.length > 1) {
+				// TODO: consider if the de-arrayed objects should remain
+				// remove arrays
+				a_things = a_things.map(s => s.replace(/^\[+(.*)\]+$/, '$1')).filter(s => s);
+
+				// cannot mix primitives and non-primitives
+				if(!a_things.every(s => A_PRIMITIVES.includes(s))) {
+					a_things = a_things.filter(s => !A_PRIMITIVES.includes(s));
+				}
+
+				// still multiple things
+				if(a_things.length > 1) {
+
+					// create union target
+					si_target = `${si_pre}${si_post}`;
+
+					// add definition to schema
+					s_schema += `union ${si_target} = ${a_things.join(' | ')}\n\n`;
+				}
+			}
+
+			// return target
+			return si_target;
+		}
+
 		// construct document ast
 		for(const [si_type, g_type] of ode(_h_types)) {
 			// skip null
@@ -95,6 +137,9 @@ export class GraphqlSchema {
 			// prep lines
 			const a_lines: string[] = [];
 
+			// unions
+			const as_unions = new Set<string>();
+
 			// properties
 			for(const [si_field, s_field_type] of ode(g_type.fields)) {
 				// resolve type
@@ -102,6 +147,9 @@ export class GraphqlSchema {
 
 				// add to definition
 				a_lines.push(`${si_field}: ${s_out_type}`);
+
+				// merge type with any
+				(h_anys[si_field] ??= new Set()).add(s_field_type);
 
 				// check for conflict
 				if('object' === typeof h_context[si_field]) {
@@ -121,13 +169,31 @@ export class GraphqlSchema {
 				// add as plain property to json-ld context (leave as unknown type)
 				else {
 					h_context[si_field] = p_iri;
+
+					// derived object type
+					if(s_field_type in this._h_objects) {
+						as_unions.add(s_field_type);
+					}
 				}
 			}
 
 			// links
 			for(const [si_field, si_key] of ode(g_type.links)) {
 				if(si_key) {
-					a_lines.push(`${si_field}: ${h_keys[si_key] || presume_key(si_key)}`);
+					// resolve target
+					const si_class = h_keys[si_key] || presume_key(si_key);
+					
+					// add property to class
+					a_lines.push(`${si_field}: ${si_class}`);
+
+					// record inverse link
+					((h_links[si_class] ??= {})[si_field] ??= []).push(si_type);
+
+					// merge type with any
+					(h_anys[si_field] ??= new Set()).add(si_class);
+
+					// add target to union type
+					as_unions.add(si_class);
 
 					// check for conflict
 					if('string' === typeof h_context[si_field]) {
@@ -145,8 +211,13 @@ export class GraphqlSchema {
 				}
 			}
 
-			// object type def
-			s_schema += group(`type ${si_type} @object`, a_lines);
+			// add special `_any` field
+			if(as_unions.size) {
+				a_lines.push(`_any: ${unionize([...as_unions], si_type, '_any')}`);
+			}
+
+			// save class
+			h_classes[si_type] = a_lines;
 
 			// add to context
 			h_context[si_type] = {
@@ -164,7 +235,11 @@ export class GraphqlSchema {
 
 		// add objects
 		for(const [si_object, h_object] of ode(this._h_objects)) {
-			s_schema += group(`type ${si_object}`, oderac(h_object, (si_key, s_type) => `${si_key}: ${s_type}`));
+			const a_lines = oderac(h_object, (si_key, s_type) => `${si_key}: ${s_type}`);
+
+			// TODO: add inverse links to owner
+
+			s_schema += group(`type ${si_object}`, a_lines);
 
 			// // add to context
 			// h_context[si_object] = {
@@ -173,15 +248,74 @@ export class GraphqlSchema {
 			// };
 		}
 
+		// each class
+		for(const [si_class, a_lines] of ode(h_classes)) {
+			// each incoming link for this class
+			for(const [si_link, a_origins] of ode(h_links[si_class] || {})) {
+				// define inverse property
+				const si_prop = `_inv_${si_link}`;
+
+				// add inverse property
+				a_lines.push(`${si_prop}: ${unionize(a_origins, si_class, si_prop)}`);
+			}
+
+			// object type def
+			s_schema += group(`type ${si_class} @object`, a_lines);
+		}
+
+		// create Any class
+		{
+			const a_lines: string[] = [];
+
+			// each any property
+			for(const [si_prop, as_types] of ode(h_anys)) {
+				const si_target = unionize([...as_types], '_Any_', si_prop);
+
+				// add property
+				a_lines.push(`${si_prop}: ${si_target}`);
+			}
+
+			a_lines.push(`_any: ${unionize(Object.keys(_h_types), '_Any', '_any')}`);
+
+			// define Any type
+			s_schema += group(`type _Any`, a_lines);
+		}
+
+
 		// prepend root query types
 		s_schema = [
 			'directive @object on OBJECT',
 			'directive @any on FIELD_DEFINITION',
 			'directive @unique on FIELD_DEFINITION',
+			// 'directive @inverse on FIELD',
+			'directive @many on FIELD',
+			`directive @filter(
+				is: String,
+				not: String,
+				in: [String],
+				notIn: [String],
+				contains: String,
+				notContains: String,
+				startsWith: String,
+				notStartsWith: String,
+				endsWith: String,
+				notEndsWith: String,
+				regex: String,
+				notRegex: String,
+				equals: Float,
+				notEquals: Float,
+				lessThan: Float,
+				notLessThan: Float,
+				greaterThan: Float,
+				notGreaterThan: Float,
+				lessThanOrEqualTo: Float,
+				notLessThanOrEqualTo: Float,
+				greaterThanOrEqualTo: Float,
+				notGreaterThanOrEqualTo: Float,
+			) on FIELD`.replace(/\n\s+/g, '\n  ').replace(/\n\s+([^\n]+)$/, '\n$1'),
 			'\n',
 		].join('\n')
 			+group('type Query', a_queries)
-			+group('type Object', [])
 			+s_schema;
 
 

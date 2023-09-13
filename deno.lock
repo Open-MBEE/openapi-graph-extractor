@@ -57,6 +57,7 @@
   },
   "npm": {
     "specifiers": {
+      "graphql@16.8.0": "graphql@16.8.0",
       "graphy@4.3.5": "graphy@4.3.5",
       "openapi-types@12.1.0": "openapi-types@12.1.0",
       "ts-toolbelt@9.6.0": "ts-toolbelt@9.6.0",
@@ -278,6 +279,10 @@
       },
       "get-caller-file@2.0.5": {
         "integrity": "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==",
+        "dependencies": {}
+      },
+      "graphql@16.8.0": {
+        "integrity": "sha512-0oKGaR+y3qcS5mCu1vb7KG+a89vjn06C7Ihq/dDl3jA+A8B3TKomvi3CiEcVLJQGalbu8F52LxkOym7U5sSfbg==",
         "dependencies": {}
       },
       "graphy@4.3.5": {
