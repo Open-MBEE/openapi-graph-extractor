@@ -15,10 +15,13 @@ import {GraphqlSchema} from './graphql.ts';
 import {P_NS_XSD} from './constants.ts';
 
 
-
 class Extraction {
-	static async create(gc_service: ServiceConfigOpenApiV2, g_augmentation: ServiceAugmentation): Promise<Extraction> {
-		const k_extraction = new Extraction(gc_service, g_augmentation);
+	static async create(
+		gc_service: ServiceConfigOpenApiV2,
+		p_write: string,
+		g_augmentation: ServiceAugmentation,
+	): Promise<Extraction> {
+		const k_extraction = new Extraction(gc_service, p_write, g_augmentation);
 
 		await k_extraction._init();
 
@@ -41,7 +44,11 @@ class Extraction {
 
 	protected _f_fetch: (p_url: string, gc_fetch: RequestInit) => Promise<Response>;
 
-	private constructor(protected _gc_service: ServiceConfigOpenApiV2, protected _g_augmentation: ServiceAugmentation) {
+	private constructor(
+		protected _gc_service: ServiceConfigOpenApiV2,
+		protected _p_write: string,
+		protected _g_augmentation: ServiceAugmentation,
+	) {
 		const g_document = this._g_document = _gc_service.openApiDocument;		
 
 		// destructure document properties
@@ -86,9 +93,17 @@ class Extraction {
 			},
 		});
 
-		// pipe to stdout
+		// open file for writing
+		const d_ttl = Deno.openSync(_p_write, {write:true, create:true});
+
+		// pipe to file
 		ds_writer.on('data', (atu8_data: Uint8Array) => {
-			Deno.stdout.write(atu8_data);
+			d_ttl.writeSync(atu8_data);
+		});
+
+		// close when ended
+		ds_writer.on('end', () => {
+			d_ttl.close();
 		});
 	}
 
@@ -437,7 +452,7 @@ class Extraction {
 	}
 }
 
-export async function extract(gc_service: ServiceConfigOpenApiV2, g_augmentation?: ServiceAugmentation | undefined) {
+export async function extract(gc_service: ServiceConfigOpenApiV2, pd_build: string, g_augmentation?: ServiceAugmentation | undefined) {
 	const g_document = gc_service.openApiDocument;
 
 	// config specifies version; assert version matches document
@@ -457,7 +472,7 @@ export async function extract(gc_service: ServiceConfigOpenApiV2, g_augmentation
 	}
 
 	// create extraction instance
-	const k_extraction = await Extraction.create(gc_service, g_augmentation || {});
+	const k_extraction = await Extraction.create(gc_service, pd_build+'/dataset.ttl', g_augmentation || {});
 
 	// start with an initial sweep
 	await k_extraction.sweep();
@@ -466,5 +481,5 @@ export async function extract(gc_service: ServiceConfigOpenApiV2, g_augmentation
 	await k_extraction.crawl();
 
 	// finalize graphql schema
-	k_extraction.graphql.dump(gc_service.graphql, k_extraction.base);
+	k_extraction.graphql.dump(gc_service.graphql, k_extraction.base, pd_build);
 }

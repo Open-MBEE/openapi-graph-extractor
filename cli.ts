@@ -17,6 +17,14 @@ import {CompatibleDocument, ServiceConfigOpenApiV2} from './src/exporter.ts';
 yargs(Deno.args)
 	.command('extract <config-script> [api-document]', 'run the extraction using the given congiruation script and optionally OpenAPI document',
 		(y_yargs_extract: YargsInstance) => y_yargs_extract
+			.options({
+				'output-dir': {
+					alias: 'd',
+					type: 'string',
+					desc: 'path to output directory where files will be written (dataset.ttl, context.jsonld, and schema.graphql)',
+					demandOption: true,
+				},
+			})
 			.positional('config-script', {
 				describe: 'the configuration script as JavaScript or TypeScript',
 			})
@@ -138,8 +146,11 @@ yargs(Deno.args)
 			// fire document loaded hook
 			const g_augmentation = await gc_service.documentLoaded?.(g_document);
 
+			// prep build directory
+			const pd_build = path.resolve(Deno.cwd(), g_argv.outputDir);
+
 			// run the extraction
-			await extract(gc_service, g_augmentation);
+			await extract(gc_service, pd_build, g_augmentation);
 		})
 	.strictCommands()
 	.demandCommand(1)

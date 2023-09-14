@@ -1,5 +1,4 @@
 import { Dict, ode, oderac } from './belt.ts';
-import {graphql} from '../deps.ts';
 import { ServiceConfigGlobal } from './exporter.ts';
 import { P_NS_XSD } from './constants.ts';
 
@@ -52,7 +51,7 @@ export class GraphqlSchema {
 		this._h_objects = Object.assign(this._h_objects, g_expansions.objects);
 	}
 
-	dump(gc_graphql: ServiceConfigGlobal['graphql'] | undefined, p_base: string) {
+	dump(gc_graphql: ServiceConfigGlobal['graphql'] | undefined, p_base: string, pd_build: string) {
 		const {
 			_h_types,			
 		} = this;
@@ -151,23 +150,36 @@ export class GraphqlSchema {
 				// merge type with any
 				(h_anys[si_field] ??= new Set()).add(s_field_type);
 
-				// check for conflict
-				if('object' === typeof h_context[si_field]) {
-					console.error(`Naming conflict on '${si_field}' prevents JSON-LD context mappign for GraphQL queries`);
-				}
-
 				// prep iri
 				const p_iri = p_base+si_field;
 
+				// ref existing
+				const z_existing = h_context[si_field];
+
 				// xsd type
 				if(s_field_type in H_GRAPHQL_TYPES_TO_XSD) {
-					h_context[si_field] = {
+					// prep property struct
+					const g_property = {
 						'@id': p_iri,
 						'@type': P_NS_XSD+H_GRAPHQL_TYPES_TO_XSD[s_field_type as keyof typeof H_GRAPHQL_TYPES_TO_XSD],
 					};
+
+					// check for conflict
+					if('string' === typeof z_existing || ('object' === typeof z_existing && JSON.stringify(g_property) !== JSON.stringify(z_existing))) {
+						console.error(`Naming conflict on '${si_field}' detected for JSON-LD context mapping!`);
+					}
+
+					// save
+					h_context[si_field] = g_property;
 				}
 				// add as plain property to json-ld context (leave as unknown type)
 				else {
+					// check for conflict
+					if('object' === typeof z_existing || ('string' === typeof z_existing && z_existing !== p_iri)) {
+						console.error(`Naming conflict on '${si_field}' detected for JSON-LD context mapping!`);
+					}
+	
+					// save
 					h_context[si_field] = p_iri;
 
 					// derived object type
@@ -195,16 +207,20 @@ export class GraphqlSchema {
 					// add target to union type
 					as_unions.add(si_class);
 
-					// check for conflict
-					if('string' === typeof h_context[si_field]) {
-						console.error(`Naming conflict on '${si_field}' prevents JSON-LD context mappign for GraphQL queries`);
-					}
-
-					// add link property to json-ld context
-					h_context[si_field] = {
+					// id property
+					const g_property = {
 						'@type': '@id',
 						'@id': p_base+si_field,
 					};
+
+					// check for conflict
+					const z_existing = h_context[si_field];
+					if('string' === typeof z_existing || ('object' === typeof z_existing && JSON.stringify(g_property) !== JSON.stringify(z_existing))) {
+						console.error(`Naming conflict on '${si_field}' prevents JSON-LD context mapping for GraphQL queries`);
+					}
+
+					// add link property to json-ld context
+					h_context[si_field] = g_property;
 				}
 				else {
 					console.warn(`undefined key in ${si_type} on field ${si_field}: ${si_key}`);
@@ -287,7 +303,6 @@ export class GraphqlSchema {
 			'directive @object on OBJECT',
 			'directive @any on FIELD_DEFINITION',
 			'directive @unique on FIELD_DEFINITION',
-			// 'directive @inverse on FIELD',
 			'directive @many on FIELD',
 			`directive @filter(
 				is: String,
@@ -319,23 +334,12 @@ export class GraphqlSchema {
 			+s_schema;
 
 
-		console.log(s_schema);
+		// write graphql schema
+		Deno.writeFileSync(pd_build+'/schema.graphql', new TextEncoder().encode(s_schema));
 
-		Deno.writeFileSync('./build/schema.graphql', new TextEncoder().encode(s_schema));
-
-
-		Deno.writeFileSync('./build/context.jsonld', new TextEncoder().encode(JSON.stringify({
+		// write json-ld context
+		Deno.writeFileSync(pd_build+'/context.jsonld', new TextEncoder().encode(JSON.stringify({
 			'@context': h_context,
 		}, null, '  ')));
-
-		// // finalize document
-		// const g_doc: graphql.DocumentNode = {
-		// 	kind: graphql.Kind.DOCUMENT,
-		// 	definitions: a_defs,
-		// };
-
-		// const g_schema = graphql.buildASTSchema(g_doc);
-
-		// console.log(graphql.printSchema(g_schema));
 	}
 }
