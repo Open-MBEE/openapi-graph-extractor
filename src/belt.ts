@@ -244,7 +244,7 @@ export function oderaf<
 	return ode(h_thing).reduce((a_out, [si_key, w_value], i_entry) => [
 		...a_out,
 		...f_concat(si_key, w_value, i_entry),
-	], []);
+	], [] as w_out[]);
 }
 
 
