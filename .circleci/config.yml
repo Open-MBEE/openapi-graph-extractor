@@ -12,17 +12,17 @@ jobs:
           at: /home/circleci/project
       - sonarcloud/scan
   test:
-    executor:
-      name: docker/docker
+    docker:
+      - image: denoland/deno:1.38.3
     working_directory: /home/circleci/project
     steps:
       - checkout
-      - setup_remote_docker:
-            docker_layer_caching: true
       - run:
             name: Deno Test and Coverage Report
             command: |
-              docker run -v "$(pwd)":/openapi-graph-extractor -w /openapi-graph-extractor --rm -it denoland/deno:1.38.3 sh -c 'deno cache --reload --lock=deno.lock cli.ts && deno test --coverage=cov_profile && deno coverage cov_profile --lcov --output=cov_profile.lcov'
+              deno cache --reload --lock=deno.lock cli.ts 
+              deno test --coverage=cov_profile
+              deno coverage cov_profile --lcov --output=cov_profile.lcov'
       - persist_to_workspace:
             root: /home/circleci/
             paths:
