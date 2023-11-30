@@ -6,15 +6,16 @@ jobs:
   scan:
     executor:
       name: docker/docker
+    working_directory: /home/circleci/openapi-graph-extractor
     steps:
       - checkout
       - attach_workspace:
-          at: /home/circleci/project
+          at: /home/circleci/openapi-graph-extractor
       - sonarcloud/scan
   test:
     docker:
       - image: denoland/deno:1.38.3
-    working_directory: /home/circleci/project
+    working_directory: /home/circleci/openapi-graph-extractor
     steps:
       - checkout
       - run:
@@ -26,7 +27,7 @@ jobs:
       - persist_to_workspace:
             root: /home/circleci/
             paths:
-              - project
+              - openapi-graph-extractor
 workflows:
     version: 2
     test:
@@ -36,7 +37,7 @@ workflows:
               - persist_to_workspace:
                   root: /home/circleci/
                   paths:
-                    - project
+                    - openapi-graph-extractor
             context:
                 - DockerHub
         - scan:
