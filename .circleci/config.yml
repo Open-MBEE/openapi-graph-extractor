@@ -8,9 +8,8 @@ jobs:
       name: docker/docker
     working_directory: /home/circleci/openapi-graph-extractor
     steps:
-      - checkout
       - attach_workspace:
-          at: /home/circleci/openapi-graph-extractor
+          at: /home/circleci/
       - sonarcloud/scan
   test:
     docker:
@@ -28,6 +27,8 @@ jobs:
             root: /home/circleci/
             paths:
               - openapi-graph-extractor
+      - store_artifacts:
+          path: /home/circleci/cov_profile
 workflows:
     version: 2
     test:
