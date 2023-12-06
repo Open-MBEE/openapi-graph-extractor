@@ -28,7 +28,7 @@ jobs:
             paths:
               - openapi-graph-extractor
       - store_artifacts:
-          path: /home/circleci/cov_profile
+          path: /home/circleci/openapi-graph-extractor
 workflows:
     version: 2
     test:
