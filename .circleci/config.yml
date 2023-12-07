@@ -22,7 +22,7 @@ jobs:
             command: |
               deno cache --reload --lock=deno.lock cli.ts 
               deno test --coverage=coverage
-              deno coverage coverage --lcov --output=lcov.info
+              deno coverage coverage --lcov --output=coverage/lcov.info
       - persist_to_workspace:
             root: /home/circleci/
             paths:
