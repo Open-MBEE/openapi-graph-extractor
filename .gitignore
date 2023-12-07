@@ -2,3 +2,4 @@
 build/
 scrap/
 *.log
+coverage/
