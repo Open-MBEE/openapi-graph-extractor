@@ -27,11 +27,10 @@ jobs:
             root: /home/circleci/
             paths:
               - openapi-graph-extractor
-              - openapi-graph-extractor/tests/test-results
       - store_artifacts:
           path: /home/circleci/openapi-graph-extractor
       - store_test_results:
-          path: /home/circleci/openapi-graph-extractor/tests/test-results
+          path: /home/circleci/openapi-graph-extractor/tests/unit
 workflows:
     version: 2
     test_and_scan:
