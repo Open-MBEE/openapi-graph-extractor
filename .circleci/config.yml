@@ -21,9 +21,8 @@ jobs:
             name: Deno Test and Coverage Report
             command: |
               deno cache --reload --lock=deno.lock cli.ts 
-              deno test --coverage=coverage
+              deno test --coverage=coverage --junit-path=./report.xml
               deno coverage coverage --lcov --output=coverage/lcov.info
-              deno test --junit-path=./report.xml
       - persist_to_workspace:
             root: /home/circleci/
             paths:
