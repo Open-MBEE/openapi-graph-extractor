@@ -21,7 +21,7 @@ jobs:
             name: Deno Test and Coverage Report
             command: |
               deno cache --reload --lock=deno.lock cli.ts 
-              deno test --coverage=coverage
+              deno test --coverage=coverage --junit-path=./report.xml
               deno coverage coverage --lcov --output=coverage/lcov.info
       - persist_to_workspace:
             root: /home/circleci/
@@ -29,6 +29,8 @@ jobs:
               - openapi-graph-extractor
       - store_artifacts:
           path: /home/circleci/openapi-graph-extractor
+      - store_test_results:
+          path: .
 workflows:
     version: 2
     test_and_scan:
