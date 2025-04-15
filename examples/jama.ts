@@ -53,9 +53,26 @@ export default defineService({
 
 			return paginationParams === 0b11;
 		},
-
+		nextOffset(currentOffset, body, operation ) {
+			const nl_results = body.data.length as number;
+			let offset = currentOffset
+			if (operation.operationId === 'getRelationships') {
+				offset = body.data.at(-1).id
+			} else {
+				offset += nl_results;
+			}
+			return offset
+		},
 		// produce pagination query args
-		nextPage(offset) {
+		nextPage(offset, operation) {
+			if ('getRelationships' === operation.operationId) {
+				return {
+					queryArgs: {
+						maxResults: 1000,
+						lastId: offset
+					}
+				};
+			}
 			return {
 				queryArgs: {
 					startAt: offset,

@@ -326,10 +326,8 @@ class Extraction {
 
 			if(b_paginating) {
 				const nl_results = g_body.data.length as number;
-
 				if(nl_results < g_pagination!.limit) break;
-
-				i_offset += nl_results;
+				i_offset = g_pagination!.nextOffset(i_offset, g_body, g_operation)
 			}
 			else {
 				break;

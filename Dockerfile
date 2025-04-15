@@ -1,6 +1,6 @@
-FROM denoland/deno:alpine-1.29.2
+FROM denoland/deno:alpine-2.2.10
 
-ENV EXTRACT_FILE "/tmp/extract.ttl"
+ENV EXTRACT_FILE="/tmp/extract.ttl"
 
 WORKDIR $DENO_DIR
 USER deno

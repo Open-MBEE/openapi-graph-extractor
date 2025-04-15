@@ -12,7 +12,7 @@ interface ServiceConfigGlobal {
 /**
  * Arguments that will be stringified and encoded in a specific way when submitting a request
  */
-type RequestArgs = Record<string, string | number>;
+type RequestArgs = Record<string, string | number | undefined>;
 
 /**
  * 
@@ -145,6 +145,7 @@ export type ServiceConfigOpenApiV2<
 				: OpenAPIV2.Document['paths'][string]
 			>): boolean;
 
+			nextOffset(currentOffset: number, body: any, operation: Dereference.Deeply<NonNullable<OpenAPIV2.OperationObject>>): number;
 			/**
 			 * Hook gets called before each pagination request
 			 */

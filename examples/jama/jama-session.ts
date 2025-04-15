@@ -97,7 +97,7 @@ export class JamaSession {
 
 			try {
 				const g_token = JSON.parse(s_text);
-				if('string' !== typeof g_token.access_token || 'bearer' !== g_token.token_type) {
+				if('string' !== typeof g_token.access_token || 'Bearer' !== g_token.token_type) {
 					throw new Error(s_text);
 				}
 
