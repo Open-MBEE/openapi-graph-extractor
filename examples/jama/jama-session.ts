@@ -21,7 +21,7 @@ export class JamaSession {
 	protected _h_cookies: Record<string, string> = {};
 	protected _g_token!: Token | undefined;
 
-	static async create(p_host: string, s_username: string, s_password: string, s_security: SecurityType|undefined='web') {
+	static async create(p_host: string, s_username: string, s_password: string, s_security: SecurityType|undefined='oauth') {
 		const k_session = new JamaSession(p_host);
 		await k_session.auth(s_username, s_password, s_security);
 		return k_session;
