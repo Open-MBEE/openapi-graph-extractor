@@ -137,8 +137,9 @@ export class Translation {
 					// remap items
 					const a_mapped = z_value.map((z_item, i_item) => k_self._remap_item(_g_def.items as JscAny, z_item, p_self+'/'+i_item, ''+i_item));
 					
-					// preserver order
-					return [a_mapped];
+					// preserver order (this creates blank nodes)
+					// return [a_mapped];
+					return a_mapped;
 				},
 
 				object(_g_def: JscObject<{}, {}, string[]>) {
